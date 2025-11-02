@@ -14,6 +14,15 @@ def appdata_dir() -> Path:
     p.mkdir(parents=True, exist_ok=True)
     return p
 
+def localappdata_backups_dir() -> Path:
+    """Return %LOCALAPPDATA%/ZS/Backups and create it if missing.
+    This is the default location for automatic backups on Windows.
+    """
+    base = os.getenv("LOCALAPPDATA") or str(Path.home())
+    p = Path(base) / "ZS" / "Backups"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
 def main():
     """Bootstrap entry-point. No features yet — functions will be added incrementally."""
     print("ZS CLI bootstrap — no features yet. Next commits will add functions one by one.")
