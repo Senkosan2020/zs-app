@@ -74,63 +74,65 @@ def ensure_ods(path: Path) -> None:
     """
     headers = ["ROK", "DATUM ZAPŮJČENÍ", "ČÍSLO", "REGÁL", "VRÁCENO:", "KDE BYLO:"]
 
-    def append_header_row(tbl: Table) -> None:
-        """Append the exact header row to the given table."""
+    def _is_table(el: Any) -> bool:
+        return getattr(el, "tagName", None) == "table:table"
+
+    def _is_row(el: Any) -> bool:
+        return getattr(el, "tagName", None) == "table:table-row"
+
+    def _is_cell(el: Any) -> bool:
+        return getattr(el, "tagName", None) == "table:table-cell"
+
+    def _cell_text(cell: Any) -> str:
+        txt = ""
+        for node in getattr(cell, "childNodes", []):
+            if getattr(node, "tagName", None) == "text:p":
+                first = getattr(node, "firstChild", None)
+                txt += (getattr(first, "data", "") if first else "")
+        return txt.strip()
+
+    def _append_header_row(t: Any) -> None:
         row = TableRow()
         for h in headers:
-            cell = TableCell()
-            cell.addElement(P(text=h))
-            row.addElement(cell)
-        tbl.addElement(row)
+            c = TableCell(); c.addElement(P(text=h)); row.addElement(c)
+        t.addElement(row)
 
-    # If file exists, try to validate and repair it
     if path.exists():
         try:
             doc = load(str(path))
-            tables = [e for e in doc.spreadsheet.childNodes if isinstance(e, Table)]
+            tables = [e for e in getattr(doc.spreadsheet, "childNodes", []) if _is_table(e)]
             if not tables:
-                tbl = Table(name="List1")
-                doc.spreadsheet.addElement(tbl)
-                append_header_row(tbl)
+                t = Table(name="List1")
+                doc.spreadsheet.addElement(t)
+                _append_header_row(t)
                 doc.save(str(path))
                 return
 
-            tbl = tables[0]
-            rows = [e for e in tbl.childNodes if isinstance(e, TableRow)]
+            t = tables[0]
+            rows = [e for e in getattr(t, "childNodes", []) if _is_row(e)]
             if not rows:
-                append_header_row(tbl)
+                _append_header_row(t)
                 doc.save(str(path))
                 return
 
-            # Read first row texts to compare with expected headers
             first = rows[0]
-            cells = [e for e in first.childNodes if isinstance(e, TableCell)]
-            texts = []
-            for c in cells:
-                txt = ""
-                for ch in c.childNodes:
-                    if getattr(ch, "tagName", None) == "text:p":
-                        txt += (getattr(ch, "firstChild", None).data
-                                if getattr(ch, "firstChild", None) else "")
-                texts.append(txt)
-
+            cells = [e for e in getattr(first, "childNodes", []) if _is_cell(e)]
+            texts = [_cell_text(c) for c in cells]
             if texts[:len(headers)] != headers:
-                # Wipe table content and write only the header row
-                for ch in list(tbl.childNodes):
-                    tbl.removeChild(ch)
-                append_header_row(tbl)
+                for node in list(getattr(t, "childNodes", [])):
+                    t.removeChild(node)
+                _append_header_row(t)
 
             doc.save(str(path))
             return
         except Exception:
-            # Fall through to create a fresh ODS if load/repair failed
+            # If load/repair fails, fall through to create a new file
             pass
 
-    # Create a brand new ODS with a single sheet and header row
     doc = OpenDocumentSpreadsheet()
-    tbl = Table(name="List1")
-    doc.spreadsheet.addElement(tbl)
-    append_header_row(tbl)
+    t = Table(name="List1")
+    doc.spreadsheet.addElement(t)
+    _append_header_row(t)
     doc.save(str(path))
 
 
