@@ -10,6 +10,7 @@ from pathlib import Path
 from odf.opendocument import OpenDocumentSpreadsheet, load
 from odf.table import Table, TableRow, TableCell
 from odf.text import P
+from typing import Any
 
 
 DEFAULT_DB_NAME = "ZS.ods"
@@ -140,72 +141,67 @@ def ensure_meta_sheet(doc):
     from odf.table import Table, TableRow, TableCell
     from odf.text import P
 
-    def _is_table(el) -> bool:
+    def _is_table(el: Any) -> bool:
         return getattr(el, "tagName", None) == "table:table"
 
-    def _is_row(el) -> bool:
+    def _is_row(el: Any) -> bool:
         return getattr(el, "tagName", None) == "table:table-row"
 
-    def _is_cell(el) -> bool:
+    def _is_cell(el: Any) -> bool:
         return getattr(el, "tagName", None) == "table:table-cell"
 
-    def _cell_text(cell: TableCell) -> str:
+    def _cell_text(cell: Any) -> str:
         txt = ""
-        for ch in cell.childNodes:
-            if getattr(ch, "tagName", None) == "text:p":
-                txt += (getattr(ch, "firstChild", None).data
-                        if getattr(ch, "firstChild", None) else "")
+        for node in getattr(cell, "childNodes", []):
+            if getattr(node, "tagName", None) == "text:p":
+                first = getattr(node, "firstChild", None)
+                txt += (getattr(first, "data", "") if first else "")
         return txt.strip()
 
     # find existing _ZS_META by table:name
-    meta_tbl = None
-    tables = [e for e in doc.spreadsheet.childNodes if _is_table(e)]
+    meta_table = None
+    tables = [e for e in getattr(doc.spreadsheet, "childNodes", []) if _is_table(e)]
     for t in tables:
         if t.getAttribute("table:name") == "_ZS_META":
-            meta_tbl = t
+            meta_table = t
             break
 
     # create if missing
-    if meta_tbl is None:
-        meta_tbl = Table(name="_ZS_META")
-        # Best-effort "hidden": not all apps honor this in ODS
+    if meta_table is None:
+        meta_table = Table(name="_ZS_META")
         try:
-            meta_tbl.setAttribute("table:visibility", "collapse")
+            meta_table.setAttribute("table:visibility", "collapse")
         except Exception:
             pass
-        doc.spreadsheet.addElement(meta_tbl)
-        hdr = TableRow()
+        doc.spreadsheet.addElement(meta_table)
+        header = TableRow()
         for h in ("month", "color_hex"):
-            c = TableCell(); c.addElement(P(text=h)); hdr.addElement(c)
-        meta_tbl.addElement(hdr)
+            c = TableCell(); c.addElement(P(text=h)); header.addElement(c)
+        meta_table.addElement(header)
 
     # ensure header row texts exactly match
-    rows = [e for e in meta_tbl.childNodes if _is_row(e)]
+    rows = [e for e in getattr(meta_table, "childNodes", []) if _is_row(e)]
     if not rows:
-        hdr = TableRow()
+        header = TableRow()
         for h in ("month", "color_hex"):
-            c = TableCell(); c.addElement(P(text=h)); hdr.addElement(c)
-        meta_tbl.addElement(hdr)
-        rows = [hdr]
+            c = TableCell(); c.addElement(P(text=h)); header.addElement(c)
+        meta_table.addElement(header)
+        rows = [header]
 
-    hdr_cells = [e for e in rows[0].childNodes if _is_cell(e)]
+    header_cells = [e for e in getattr(rows[0], "childNodes", []) if _is_cell(e)]
     want_hdr = ("month", "color_hex")
-    need_fix = False
-    for i, want in enumerate(want_hdr):
-        if i >= len(hdr_cells) or _cell_text(hdr_cells[i]) != want:
-            need_fix = True
-            break
+    need_fix = len(header_cells) < 2 or _cell_text(header_cells[0]) != "month" or _cell_text(header_cells[1]) != "color_hex"
     if need_fix:
-        for ch in list(rows[0].childNodes):
-            rows[0].removeChild(ch)
+        for node in list(getattr(rows[0], "childNodes", [])):
+            rows[0].removeChild(node)
         for h in want_hdr:
             c = TableCell(); c.addElement(P(text=h)); rows[0].addElement(c)
 
     # index existing months
     existing = {}
-    rows = [e for e in meta_tbl.childNodes if _is_row(e)]
+    rows = [e for e in getattr(meta_table, "childNodes", []) if _is_row(e)]
     for r in rows[1:]:
-        cells = [e for e in r.childNodes if _is_cell(e)]
+        cells = [e for e in getattr(r, "childNodes", []) if _is_cell(e)]
         if not cells:
             continue
         m_txt = _cell_text(cells[0])
@@ -223,9 +219,9 @@ def ensure_meta_sheet(doc):
             c1 = TableCell(); c1.addElement(P(text=str(m)))
             c2 = TableCell(); c2.addElement(P(text=""))
             row.addElement(c1); row.addElement(c2)
-            meta_tbl.addElement(row)
+            meta_table.addElement(row)
 
-    return meta_tbl
+    return meta_table
 
 
 def main():
