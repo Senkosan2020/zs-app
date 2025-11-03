@@ -236,6 +236,50 @@ def ensure_meta_sheet(doc):
     return meta_table
 
 
+def get_month_color(doc, m: int):
+    """Return '#RRGGBB' for month m (1..12) from _ZS_META, or None if empty/missing."""
+    if not (1 <= m <= 12):
+        raise ValueError("month must be in 1..12")
+
+    meta_table = ensure_meta_sheet(doc)
+
+    def _is_row(el: Any) -> bool:
+        return getattr(el, "tagName", None) == "table:table-row"
+
+    def _is_cell(el: Any) -> bool:
+        return getattr(el, "tagName", None) == "table:table-cell"
+
+    def _cell_text(cell_el: Any) -> str:
+        text_acc = ""
+        for node_el in getattr(cell_el, "childNodes", []):
+            if getattr(node_el, "tagName", None) == "text:p":
+                first_child_el = getattr(node_el, "firstChild", None)
+                text_acc += (getattr(first_child_el, "data", "") if first_child_el else "")
+        return text_acc.strip()
+
+    rows = [el for el in getattr(meta_table, "childNodes", []) if _is_row(el)]
+    for r in rows[1:]:
+        cells = [el for el in getattr(r, "childNodes", []) if _is_cell(el)]
+        if len(cells) < 2:
+            continue
+        try:
+            m_int = int(_cell_text(cells[0]) or "0")
+        except ValueError:
+            continue
+        if m_int == m:
+            raw = _cell_text(cells[1]).strip()
+            if not raw:
+                return None
+            # normalize to #RRGGBB
+            hexval = raw.upper()
+            if not hexval.startswith("#"):
+                hexval = "#" + hexval
+            if len(hexval) == 4 and all(ch in "0123456789ABCDEF" for ch in hexval[1:]):
+                hexval = "#" + "".join(c*2 for c in hexval[1:])
+            return hexval
+    return None
+
+
 def main():
     """Bootstrap entry-point. No features yet — functions will be added incrementally."""
     print("ZS CLI bootstrap — no features yet. Next commits will add functions one by one.")
