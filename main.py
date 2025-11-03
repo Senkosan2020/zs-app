@@ -55,6 +55,14 @@ def load_config() -> dict:
     }
 
 
+def save_config(cfg: dict) -> None:
+    """Persist config to %APPDATA%/ZS/config.json (simple atomic-like write)."""
+    cp = config_path()
+    tmp = cp.with_suffix(".tmp")
+    tmp.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(cp)
+
+
 def main():
     """Bootstrap entry-point. No features yet — functions will be added incrementally."""
     print("ZS CLI bootstrap — no features yet. Next commits will add functions one by one.")
