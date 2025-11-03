@@ -5,7 +5,12 @@ Project rules: English comments; small useful commits; one function = one commit
 
 import os
 import sys
+import json
 from pathlib import Path
+
+DEFAULT_DB_NAME = "ZS.ods"
+DEFAULT_RETENTION = 24
+DEFAULT_BACKUP_FREQ_MIN = 60
 
 
 def appdata_dir() -> Path:
@@ -29,6 +34,25 @@ def localappdata_backups_dir() -> Path:
 def config_path() -> Path:
     """Return the full path to the app config file under APPDATA."""
     return appdata_dir() / "config.json"
+
+
+def load_config() -> dict:
+    """Load config JSON from %APPDATA%/ZS/config.json or return sensible defaults."""
+    cp = config_path()
+    if cp.exists():
+        try:
+            return json.loads(cp.read_text(encoding="utf-8"))
+        except Exception:
+            # Fall through to defaults if the file is malformed
+            pass
+    return {
+        "db_path": DEFAULT_DB_NAME,
+        "lang": "en",
+        "backup_dir": str(localappdata_backups_dir()),
+        "backup_retention": DEFAULT_RETENTION,
+        "backup_frequency_minutes": DEFAULT_BACKUP_FREQ_MIN,
+        "last_backup_time": None
+    }
 
 
 def main():
