@@ -7,12 +7,14 @@ import os
 import sys
 from pathlib import Path
 
+
 def appdata_dir() -> Path:
     """Return %APPDATA%/ZS (create if missing)."""
     base = os.getenv("APPDATA") or str(Path.home())
     p = Path(base) / "ZS"
     p.mkdir(parents=True, exist_ok=True)
     return p
+
 
 def localappdata_backups_dir() -> Path:
     """Return %LOCALAPPDATA%/ZS/Backups and create it if missing.
@@ -23,10 +25,17 @@ def localappdata_backups_dir() -> Path:
     p.mkdir(parents=True, exist_ok=True)
     return p
 
+
+def config_path() -> Path:
+    """Return the full path to the app config file under APPDATA."""
+    return appdata_dir() / "config.json"
+
+
 def main():
     """Bootstrap entry-point. No features yet — functions will be added incrementally."""
     print("ZS CLI bootstrap — no features yet. Next commits will add functions one by one.")
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())
