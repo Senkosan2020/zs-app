@@ -7,6 +7,10 @@ import os
 import sys
 import json
 from pathlib import Path
+from odf.opendocument import OpenDocumentSpreadsheet, load
+from odf.table import Table, TableRow, TableCell
+from odf.text import P
+
 
 DEFAULT_DB_NAME = "ZS.ods"
 DEFAULT_RETENTION = 24
@@ -61,6 +65,72 @@ def save_config(cfg: dict) -> None:
     tmp = cp.with_suffix(".tmp")
     tmp.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
     tmp.replace(cp)
+
+
+def ensure_ods(path: Path) -> None:
+    """Ensure an ODS file exists at 'path' with the expected header row.
+    If present but malformed (no sheet or wrong header), rewrite headers.
+    """
+    headers = ["ROK", "DATUM ZAPŮJČENÍ", "ČÍSLO", "REGÁL", "VRÁCENO:", "KDE BYLO:"]
+
+    def append_header_row(tbl: Table) -> None:
+        """Append the exact header row to the given table."""
+        row = TableRow()
+        for h in headers:
+            cell = TableCell()
+            cell.addElement(P(text=h))
+            row.addElement(cell)
+        tbl.addElement(row)
+
+    # If file exists, try to validate and repair it
+    if path.exists():
+        try:
+            doc = load(str(path))
+            tables = [e for e in doc.spreadsheet.childNodes if isinstance(e, Table)]
+            if not tables:
+                tbl = Table(name="List1")
+                doc.spreadsheet.addElement(tbl)
+                append_header_row(tbl)
+                doc.save(str(path))
+                return
+
+            tbl = tables[0]
+            rows = [e for e in tbl.childNodes if isinstance(e, TableRow)]
+            if not rows:
+                append_header_row(tbl)
+                doc.save(str(path))
+                return
+
+            # Read first row texts to compare with expected headers
+            first = rows[0]
+            cells = [e for e in first.childNodes if isinstance(e, TableCell)]
+            texts = []
+            for c in cells:
+                txt = ""
+                for ch in c.childNodes:
+                    if getattr(ch, "tagName", None) == "text:p":
+                        txt += (getattr(ch, "firstChild", None).data
+                                if getattr(ch, "firstChild", None) else "")
+                texts.append(txt)
+
+            if texts[:len(headers)] != headers:
+                # Wipe table content and write only the header row
+                for ch in list(tbl.childNodes):
+                    tbl.removeChild(ch)
+                append_header_row(tbl)
+
+            doc.save(str(path))
+            return
+        except Exception:
+            # Fall through to create a fresh ODS if load/repair failed
+            pass
+
+    # Create a brand new ODS with a single sheet and header row
+    doc = OpenDocumentSpreadsheet()
+    tbl = Table(name="List1")
+    doc.spreadsheet.addElement(tbl)
+    append_header_row(tbl)
+    doc.save(str(path))
 
 
 def main():
